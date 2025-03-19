@@ -1,0 +1,853 @@
+> # Caricamento delle librerie necessarie
+> library(ggplot2)
+> library(car)
+> library(DAAG)
+> library(corrplot)
+> library(olsrr)
+> library(glmnet)  # Per Ridge, LASSO e Elastic Net
+> library(caret)   # Per la cross-validation
+> library(lmtest)
+> library(sandwich)
+> 
+> 
+> # Lettura dei dati
+> housing_data <- read.csv("C:/Users/giuse/Desktop/HousingData.csv")
+> 
+> # Visualizzazione delle prime righe del dataset
+> head(housing_data)
+     CRIM ZN INDUS CHAS   NOX    RM  AGE    DIS RAD TAX PTRATIO      B LSTAT
+1 0.00632 18  2.31    0 0.538 6.575 65.2 4.0900   1 296    15.3 396.90  4.98
+2 0.02731  0  7.07    0 0.469 6.421 78.9 4.9671   2 242    17.8 396.90  9.14
+3 0.02729  0  7.07    0 0.469 7.185 61.1 4.9671   2 242    17.8 392.83  4.03
+4 0.03237  0  2.18    0 0.458 6.998 45.8 6.0622   3 222    18.7 394.63  2.94
+5 0.06905  0  2.18    0 0.458 7.147 54.2 6.0622   3 222    18.7 396.90    NA
+6 0.02985  0  2.18    0 0.458 6.430 58.7 6.0622   3 222    18.7 394.12  5.21
+  MEDV
+1 24.0
+2 21.6
+3 34.7
+4 33.4
+5 36.2
+6 28.7
+> 
+> # Summary delle variabili
+> summary(housing_data)
+      CRIM                ZN             INDUS            CHAS        
+ Min.   : 0.00632   Min.   :  0.00   Min.   : 0.46   Min.   :0.00000  
+ 1st Qu.: 0.08190   1st Qu.:  0.00   1st Qu.: 5.19   1st Qu.:0.00000  
+ Median : 0.25372   Median :  0.00   Median : 9.69   Median :0.00000  
+ Mean   : 3.61187   Mean   : 11.21   Mean   :11.08   Mean   :0.06996  
+ 3rd Qu.: 3.56026   3rd Qu.: 12.50   3rd Qu.:18.10   3rd Qu.:0.00000  
+ Max.   :88.97620   Max.   :100.00   Max.   :27.74   Max.   :1.00000  
+ NA's   :20         NA's   :20       NA's   :20      NA's   :20       
+      NOX               RM             AGE              DIS        
+ Min.   :0.3850   Min.   :3.561   Min.   :  2.90   Min.   : 1.130  
+ 1st Qu.:0.4490   1st Qu.:5.886   1st Qu.: 45.17   1st Qu.: 2.100  
+ Median :0.5380   Median :6.208   Median : 76.80   Median : 3.207  
+ Mean   :0.5547   Mean   :6.285   Mean   : 68.52   Mean   : 3.795  
+ 3rd Qu.:0.6240   3rd Qu.:6.623   3rd Qu.: 93.97   3rd Qu.: 5.188  
+ Max.   :0.8710   Max.   :8.780   Max.   :100.00   Max.   :12.127  
+                                  NA's   :20                       
+      RAD              TAX           PTRATIO            B         
+ Min.   : 1.000   Min.   :187.0   Min.   :12.60   Min.   :  0.32  
+ 1st Qu.: 4.000   1st Qu.:279.0   1st Qu.:17.40   1st Qu.:375.38  
+ Median : 5.000   Median :330.0   Median :19.05   Median :391.44  
+ Mean   : 9.549   Mean   :408.2   Mean   :18.46   Mean   :356.67  
+ 3rd Qu.:24.000   3rd Qu.:666.0   3rd Qu.:20.20   3rd Qu.:396.23  
+ Max.   :24.000   Max.   :711.0   Max.   :22.00   Max.   :396.90  
+                                                                  
+     LSTAT             MEDV      
+ Min.   : 1.730   Min.   : 5.00  
+ 1st Qu.: 7.125   1st Qu.:17.02  
+ Median :11.430   Median :21.20  
+ Mean   :12.715   Mean   :22.53  
+ 3rd Qu.:16.955   3rd Qu.:25.00  
+ Max.   :37.970   Max.   :50.00  
+ NA's   :20                      
+> 
+> # Verifica della presenza di valori mancanti
+> sum(is.na(housing_data))
+[1] 120
+> #eliminiamo valori mancanti per evitare che quando magari
+> #facciamo operazione come quella di grafico tra dati stimati e dati osservati
+> #ci siano incongruenze tra le dimensioni dei dati
+> housing_data <- na.omit(housing_data)
+> 
+> 
+> 
+> # Istogramma della variabile dipendente MEDV
+> windows()
+> ggplot(housing_data, aes(x = MEDV)) +
++   geom_histogram(binwidth = 5, fill = "blue", color = "black") +
++   labs(title = "Distribuzione di MEDV", x = "MEDV", y = "Frequenza")
+> 
+> 
+> #GRAFICO ---MEDIA E VARIANZA----
+> #Calcolo della media e della varianza
+> media_medv <- mean(housing_data$MEDV)
+> varianza_medv <- var(housing_data$MEDV)
+> 
+> # Stampa dei risultati
+> cat("Media di medv:", media_medv, "\n")
+Media di medv: 22.35964 
+> cat("Varianza di medv:", varianza_medv, "\n")
+Varianza di medv: 83.59407 
+> 
+> # Grafico della media e della varianza
+> windows()
+> barplot(c(media_medv, varianza_medv), 
++         names.arg = c("Media", "Varianza"), 
++         main = "Media e Varianza di medv", 
++         ylab = "Valore", 
++         col = c("blue", "red"))
+> 
+> 
+> 
+> # Matrice di correlazione
+> cor_matrix <- cor(housing_data, use = "complete.obs")
+> print(cor_matrix)
+               CRIM          ZN       INDUS        CHAS         NOX          RM
+CRIM     1.00000000 -0.18807507  0.39155182 -0.05196992  0.41615982 -0.22716991
+ZN      -0.18807507  1.00000000 -0.52125603 -0.03335682 -0.51566046  0.34321034
+INDUS    0.39155182 -0.52125603  1.00000000  0.04981956  0.76273657 -0.40306825
+CHAS    -0.05196992 -0.03335682  0.04981956  1.00000000  0.07666108  0.09530772
+NOX      0.41615982 -0.51566046  0.76273657  0.07666108  1.00000000 -0.31656347
+RM      -0.22716991  0.34321034 -0.40306825  0.09530772 -0.31656347  1.00000000
+AGE      0.34131149 -0.56817376  0.64238703  0.07264446  0.73254019 -0.24867008
+DIS     -0.36505178  0.64535889 -0.69656900 -0.09503705 -0.76813683  0.21871341
+RAD      0.60866672 -0.29877294  0.59194354  0.01410209  0.62817041 -0.23605670
+TAX      0.56084114 -0.30576760  0.73420369 -0.02651313  0.67982405 -0.32056056
+PTRATIO  0.26542768 -0.42216416  0.39569127 -0.10499480  0.21021622 -0.39068616
+B       -0.38625382  0.16989420 -0.34478755  0.06891304 -0.38425662  0.12331954
+LSTAT    0.46190578 -0.41504110  0.59815590 -0.03711330  0.59365548 -0.63622618
+MEDV    -0.39723006  0.40682152 -0.51082916  0.17370115 -0.45905433  0.72395076
+                AGE         DIS         RAD         TAX    PTRATIO           B
+CRIM     0.34131149 -0.36505178  0.60866672  0.56084114  0.2654277 -0.38625382
+ZN      -0.56817376  0.64535889 -0.29877294 -0.30576760 -0.4221642  0.16989420
+INDUS    0.64238703 -0.69656900  0.59194354  0.73420369  0.3956913 -0.34478755
+CHAS     0.07264446 -0.09503705  0.01410209 -0.02651313 -0.1049948  0.06891304
+NOX      0.73254019 -0.76813683  0.62817041  0.67982405  0.2102162 -0.38425662
+RM      -0.24867008  0.21871341 -0.23605670 -0.32056056 -0.3906862  0.12331954
+AGE      1.00000000 -0.75354690  0.44358519  0.50447249  0.2649676 -0.28198984
+DIS     -0.75354690  1.00000000 -0.47707545 -0.52960262 -0.2288401  0.28516841
+RAD      0.44358519 -0.47707545  1.00000000  0.89999984  0.4419492 -0.44413465
+TAX      0.50447249 -0.52960262  0.89999984  1.00000000  0.4469615 -0.43545656
+PTRATIO  0.26496758 -0.22884007  0.44194918  0.44696148  1.0000000 -0.17981583
+B       -0.28198984  0.28516841 -0.44413465 -0.43545656 -0.1798158  1.00000000
+LSTAT    0.60113652 -0.50503607  0.51086842  0.57221765  0.3950058 -0.38378339
+MEDV    -0.40747050  0.27954693 -0.41663771 -0.50886427 -0.5438090  0.34725609
+             LSTAT       MEDV
+CRIM     0.4619058 -0.3972301
+ZN      -0.4150411  0.4068215
+INDUS    0.5981559 -0.5108292
+CHAS    -0.0371133  0.1737012
+NOX      0.5936555 -0.4590543
+RM      -0.6362262  0.7239508
+AGE      0.6011365 -0.4074705
+DIS     -0.5050361  0.2795469
+RAD      0.5108684 -0.4166377
+TAX      0.5722177 -0.5088643
+PTRATIO  0.3950058 -0.5438090
+B       -0.3837834  0.3472561
+LSTAT    1.0000000 -0.7434496
+MEDV    -0.7434496  1.0000000
+> # Plotta la matrice di correlazione
+> corrplot(cor_matrix, 
++          method = "color",  # Usa i colori per rappresentare i valori
++          type = "upper",    # Mostra solo la parte superiore della matrice
++          tl.col = "black",  # Colore delle etichette
++          tl.srt = 45,       # Rotazione delle etichette a 45 gradi
++          addCoef.col = "black",  # Aggiungi i valori numerici
++          number.cex = 0.7,  # Dimensione del testo dei coefficienti
++          title = "Matrice di Correlazione",  # Titolo del grafico
++          mar = c(0, 0, 1, 0))  # Margini del grafico
+> 
+> 
+> 
+> # Calcolo della matrice di covarianza
+> cov_matrix <- cov(housing_data, use = "complete.obs")
+> print(cov_matrix)
+                CRIM            ZN        INDUS         CHAS          NOX
+CRIM      84.6845813   -41.4584391   24.8923906 -0.120983121  0.433184498
+ZN       -41.4584391   573.7980667  -86.2592789 -0.202131851 -1.397185140
+INDUS     24.8923906   -86.2592789   47.7254878  0.087065396  0.596019328
+CHAS      -0.1209831    -0.2021319    0.0870654  0.063994265  0.002193593
+NOX        0.4331845    -1.3971851    0.5960193  0.002193593  0.012794437
+RM        -1.4591468     5.7383352   -1.9435682  0.016828470 -0.024992943
+AGE       87.5954259  -379.5675382  123.7656994  0.512508880  2.310842723
+DIS       -7.0498575    32.4417696  -10.0986434 -0.050453019 -0.182336189
+RAD       48.3577581   -61.7881550   35.3052997  0.030799137  0.613440556
+TAX      868.6767432 -1232.7845094  853.7051738 -1.128879761 12.942651827
+PTRATIO    5.2917459   -21.9084422    5.9221889 -0.057542527  0.051514252
+B       -317.3548703   363.3526197 -212.6654652  1.556474923 -3.880629272
+LSTAT     31.0655961   -72.6598951   30.2004695 -0.068615815  0.490760029
+MEDV     -33.4219667    89.0986628  -32.2655147  0.401754692 -0.474747185
+                  RM          AGE           DIS           RAD         TAX
+CRIM     -1.45914682   87.5954259   -7.04985752   48.35775812   868.67674
+ZN        5.73833521 -379.5675382   32.44176960  -61.78815502 -1232.78451
+INDUS    -1.94356823  123.7656994  -10.09864335   35.30529972   853.70517
+CHAS      0.01682847    0.5125089   -0.05045302    0.03079914    -1.12888
+NOX      -0.02499294    2.3108427   -0.18233619    0.61344056    12.94265
+RM        0.48718290   -4.8405855    0.32036505   -1.42248199   -37.65930
+AGE      -4.84058549  777.7798668  -44.10241172  106.80456530  2368.00161
+DIS       0.32036505  -44.1024117    4.40400093   -8.64361073  -187.06390
+RAD      -1.42248199  106.8045653   -8.64361073   74.53647589  1307.80508
+TAX     -37.65930175 2368.0016133 -187.06389991 1307.80507873 28329.07036
+PTRATIO  -0.59077844   16.0092759   -1.04041444    8.26622751   162.98095
+B         7.68507507 -702.1534150   53.43124872 -342.34918401 -6543.81794
+LSTAT    -3.24550044  122.5252454   -7.74587017   32.23425253   703.88471
+MEDV      4.62000850 -103.8992097    5.36372064  -32.88748983  -783.07949
+             PTRATIO            B         LSTAT         MEDV
+CRIM      5.29174591  -317.354870   31.06559614  -33.4219667
+ZN      -21.90844215   363.352620  -72.65989509   89.0986628
+INDUS     5.92218888  -212.665465   30.20046947  -32.2655147
+CHAS     -0.05754253     1.556475   -0.06861581    0.4017547
+NOX       0.05151425    -3.880629    0.49076003   -0.4747472
+RM       -0.59077844     7.685075   -3.24550044    4.6200085
+AGE      16.00927591  -702.153415  122.52524544 -103.8992097
+DIS      -1.04041444    53.431249   -7.74587017    5.3637206
+RAD       8.26622751  -342.349184   32.23425253  -32.8874898
+TAX     162.98095220 -6543.817938  703.88470996 -783.0794901
+PTRATIO   4.69354723   -34.781534    6.25429300  -10.7717118
+B       -34.78153409  7971.506752 -250.42662868  283.4704578
+LSTAT     6.25429300  -250.426629   53.41315570  -49.6779189
+MEDV    -10.77171181   283.470458  -49.67791889   83.5940670
+> 
+> #plot dei dati come ha fatto lui
+> windows()
+> plot(housing_data)
+> 
+> #Matrice di dispersione con la retta di regressione, eventualmente controllare se ha senso quelle con rette verticali e se ha senso piu dividere per colonne
+> windows()
+> scatterplotMatrix(housing_data, col="black", pch=20, regLine = list(method=lm, lty=1, lwd=2, 
++ col="chartreuse3"), 
++ smooth=FALSE, 
++ diagonal=list(method 
++ ="histogram", breaks="FD"), 
++ main="Matrice di dispersione 
++ con rette di regressione", 
++ data=housing_data) 
+Ci sono 50 o più avvertimenti (utilizza warnings() per visualizzare i primi 50)
+> 
+> 
+> #suo commento slide 60 ppt 3_1
+> plot(housing_data$RM, housing_data$MEDV,
++      xlab = "RM", 
++      ylab = "MEDV",
++      main = "Regressione tra RM e MEDV",
++      col = "blue", pch = 20)
+> 
+> # Aggiunta della retta di regressione
+> model_rm_medv <- lm(MEDV ~ RM, data = housing_data)
+> abline(model_rm_medv, col = "red", lwd = 2)
+> 
+> 
+> #suo commento slide 60 ppt 3_1 CASO DIMINUIZIONE
+> plot(housing_data$LSTAT, housing_data$MEDV,
++      xlab = "LSTAT", 
++      ylab = "MEDV",
++      main = "Regressione tra LSTAT e MEDV",
++      col = "blue", pch = 20)
+> 
+> # Aggiunta della retta di regressione
+> model_lstat_medv <- lm(MEDV ~ LSTAT, data = housing_data)
+> abline(model_lstat_medv, col = "red", lwd = 2)
+> 
+> 
+> # Calcolo del VIF (Variance Inflation Factor) PER CAPIRE SE C'È MULTICOLLINEARITA'
+> model <- lm(MEDV ~ ., data = housing_data)
+> vif_values <- vif(model)
+> print(vif_values)
+   CRIM      ZN   INDUS    CHAS     NOX      RM     AGE     DIS     RAD     TAX 
+ 1.7414  2.3218  4.0497  1.0692  4.4958  2.1070  3.1738  3.8274  6.9867  8.6514 
+PTRATIO       B   LSTAT 
+ 1.8106  1.3723  3.1563 
+> 
+> #QUA DICIAMO CHE ESSENDO TUTTI <10 NON CE N'È
+> 
+> 
+> #Stima del modello che inizialmente secondo noi potrebbe spiegare bene
+> #la variabile dipendente, abbiamo scelto i regressori in base a quello che pensiamo 
+> #abbia piu senso
+> model1RegressoriSceltiDaNoi <- lm(MEDV ~ (CRIM+RM+DIS+TAX+B+LSTAT), data = housing_data)
+> summary(model1RegressoriSceltiDaNoi)
+
+Call:
+lm(formula = MEDV ~ (CRIM + RM + DIS + TAX + B + LSTAT), data = housing_data)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-17.3494  -3.0330  -0.8597   1.7006  28.8543 
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -5.031410   4.245602  -1.185 0.236710    
+CRIM        -0.045174   0.034891  -1.295 0.196186    
+RM           5.687836   0.488241  11.650  < 2e-16 ***
+DIS         -0.598845   0.151994  -3.940 9.67e-05 ***
+TAX         -0.008105   0.002173  -3.729 0.000221 ***
+B            0.010239   0.003321   3.083 0.002194 ** 
+LSTAT       -0.490224   0.057645  -8.504 4.03e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 5.08 on 387 degrees of freedom
+Multiple R-squared:  0.696,     Adjusted R-squared:  0.6912 
+F-statistic: 147.6 on 6 and 387 DF,  p-value: < 2.2e-16
+
+> 
+> # Analisi dei residui
+> #prima con la normale per vedere se vale hp normalita degli errori
+> residuiNostroModelloEnormale <- rstandard(model1RegressoriSceltiDaNoi)
+> hist(residuiNostroModelloEnormale,freq=F,xlim=c(-4,4), ylim=c(0,0.6)); curve(dnorm(x),add=T)
+> 
+> #poi da soli plottati per capire se ci sono andamenti sistematici negli stessi
+> plot(residuiNostroModelloEnormale)
+> 
+> 
+> 
+> SMEDVnostri<-fitted(model1RegressoriSceltiDaNoi)
+> windows()
+> # Grafico dei valori stimati vs osservati
+> plot(SMEDVnostri, housing_data$MEDV, 
++      xlab = "Valori Stimati (SMEDVnostri)", 
++      ylab = "Valori Osservati (MEDV)", 
++      main = "Valori Stimati vs Osservati", 
++      pch = 16, col = "blue")
+> # Aggiungo la retta a 45 gradi (y = x)
+> abline(a = 0, b = 1, col = "red", lwd = 2)
+> 
+> #VALORI OSSERVATI E STIMATI, se stessero tutti sulla linea rossa (cioe bisettrice
+> #cioe retta con angolo 45°avrei overfitting) 
+> 
+> 
+> 
+> #commenti sul modello ottenuto
+> #dire che proviamo ora a stimare modello partendo da tutti i regressori
+> 
+> # Stima del primo modello con tutti i regressori
+> model1 <- lm(MEDV ~ ., data = housing_data)
+> summary(model1)
+
+Call:
+lm(formula = MEDV ~ ., data = housing_data)
+
+Residuals:
+     Min       1Q   Median       3Q      Max 
+-15.4234  -2.5830  -0.5079   1.6681  26.2604 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  32.680059   5.681290   5.752 1.81e-08 ***
+CRIM         -0.097594   0.032457  -3.007 0.002815 ** 
+ZN            0.048905   0.014398   3.397 0.000754 ***
+INDUS         0.030379   0.065933   0.461 0.645237    
+CHAS          2.769378   0.925171   2.993 0.002940 ** 
+NOX         -17.969028   4.242856  -4.235 2.87e-05 ***
+RM            4.283252   0.470710   9.100  < 2e-16 ***
+AGE          -0.012991   0.014459  -0.898 0.369504    
+DIS          -1.458510   0.211007  -6.912 2.03e-11 ***
+RAD           0.285866   0.069298   4.125 4.55e-05 ***
+TAX          -0.013146   0.003955  -3.324 0.000975 ***
+PTRATIO      -0.914582   0.140581  -6.506 2.44e-10 ***
+B             0.009656   0.002970   3.251 0.001251 ** 
+LSTAT        -0.423661   0.055022  -7.700 1.19e-13 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 4.487 on 380 degrees of freedom
+Multiple R-squared:  0.7671,    Adjusted R-squared:  0.7591 
+F-statistic: 96.29 on 13 and 380 DF,  p-value: < 2.2e-16
+
+> 
+> 
+> # Analisi dei residui
+> #prima con la normale per vedere se vale hp normalita degli errori
+> residuim1 <- rstandard(model1)
+> windows()
+> hist(residuim1,freq=F,xlim=c(-4,4), ylim=c(0,0.6)); curve(dnorm(x),add=T)
+> 
+> #poi da soli plottati per capire se ci sono andamenti sistematici negli stessi
+> windows()
+> plot(residuim1)
+> 
+> 
+> #commentare questo modello dicendo cosa cambia rispetto a quello nostro, quindi tipo
+> #aumenta R^2 ecc quali sono sifninficativi ecc
+> 
+> 
+> # Rimozione dei regressori non significativi E SUCCESSIVO COMMENTO SU CHE COSA 
+> #SUCCEDE, MAGARI PASSIAMO I 3 MODELLI A CHAT E VEDIAMO SUOI COMMENTI PER LA 
+> #RELAZIONE CAPENDO COSA SCRIVERE
+> model2 <- update(model1, . ~ . - INDUS - AGE)
+> summary(model2)
+
+Call:
+lm(formula = MEDV ~ CRIM + ZN + CHAS + NOX + RM + DIS + RAD + 
+    TAX + PTRATIO + B + LSTAT, data = housing_data)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-15.214  -2.552  -0.503   1.768  26.027 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  32.975051   5.630782   5.856 1.02e-08 ***
+CRIM         -0.098151   0.032405  -3.029 0.002621 ** 
+ZN            0.049962   0.014169   3.526 0.000473 ***
+CHAS          2.788061   0.919721   3.031 0.002600 ** 
+NOX         -18.467815   3.895303  -4.741 3.01e-06 ***
+RM            4.166982   0.455473   9.149  < 2e-16 ***
+DIS          -1.420599   0.197272  -7.201 3.20e-12 ***
+RAD           0.282322   0.065525   4.309 2.09e-05 ***
+TAX          -0.012400   0.003471  -3.573 0.000398 ***
+PTRATIO      -0.914756   0.138631  -6.599 1.39e-10 ***
+B             0.009477   0.002961   3.201 0.001483 ** 
+LSTAT        -0.439994   0.051567  -8.532 3.41e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 4.481 on 382 degrees of freedom
+Multiple R-squared:  0.7665,    Adjusted R-squared:  0.7598 
+F-statistic:   114 on 11 and 382 DF,  p-value: < 2.2e-16
+
+> 
+> # Analisi dei residui
+> #prima con la normale per vedere se vale hp normalita degli errori
+> residuim2 <- rstandard(model2)
+> windows()
+> hist(residuim2,freq=F,xlim=c(-4,4), ylim=c(0,0.6)); curve(dnorm(x),add=T)
+> 
+> 
+> 
+> #ora plotto residui del modello e valori fitted da questo ultimo modello
+> # Calcola fitted_values e residuals dal modello
+> fitted_values <- fitted(model2)
+> residuals <- resid(model2)
+> 
+> # Crea il grafico dei residui vs valori fitted
+> windows()
+> ggplot(data = NULL, aes(x = fitted_values, y = residuals)) +
++   geom_point() +  # Aggiunge i punti al grafico
++   geom_hline(yintercept = 0, color = "red") +  # Aggiunge una linea orizzontale a y = 0
++   labs(title = "Residui vs Valori Fitted", x = "Fitted Values", y = "Residuals")
+> 
+> 
+> 
+> 
+> #poi da soli plottati per capire se ci sono andamenti sistematici negli stessi
+> windows()
+> plot(residuim2)
+> 
+> 
+> # Esecuzione della Best Subset Selection
+> best_subset <- ols_step_best_subset(model2)
+> print(best_subset)
+                   Best Subsets Regression                    
+--------------------------------------------------------------
+Model Index    Predictors
+--------------------------------------------------------------
+     1         LSTAT                                           
+     2         RM LSTAT                                        
+     3         RM PTRATIO LSTAT                                
+     4         RM PTRATIO B LSTAT                              
+     5         NOX RM DIS PTRATIO LSTAT                        
+     6         CHAS NOX RM DIS PTRATIO LSTAT                   
+     7         CHAS NOX RM DIS PTRATIO B LSTAT                 
+     8         ZN CHAS NOX RM DIS PTRATIO B LSTAT              
+     9         CRIM ZN CHAS NOX RM DIS PTRATIO B LSTAT         
+    10         ZN CHAS NOX RM DIS RAD TAX PTRATIO B LSTAT      
+    11         CRIM ZN CHAS NOX RM DIS RAD TAX PTRATIO B LSTAT 
+--------------------------------------------------------------
+
+                                                       Subsets Regression Summary                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------
+                       Adj.        Pred                                                                                                   
+Model    R-Square    R-Square    R-Square      C(p)         AIC         SBIC          SBC          MSEP         FPE       HSP       APC  
+-----------------------------------------------------------------------------------------------------------------------------------------
+  1        0.5527      0.5516      0.5466    341.7434    2549.9570    1429.5612    2561.8861    14769.3113    37.6758    0.0959    0.4518 
+  2        0.6585      0.6568       0.648    170.6535    2445.6163    1325.5506    2461.5217    11304.6238    28.9102    0.0736    0.3467 
+  3        0.7037      0.7014      0.6932     98.7994    2391.7494    1272.0573    2411.6311     9835.3701    25.2160    0.0642    0.3024 
+  4        0.7157      0.7128      0.7037     81.1278    2377.4286    1257.7291    2401.2868     9460.6011    24.3159    0.0619    0.2916 
+  5        0.7312      0.7277      0.7174     57.7442    2357.3178    1237.9243    2385.1522     8967.4165    23.1059    0.0588    0.2771 
+  6        0.7405      0.7365      0.7231     44.5602    2345.4729    1226.3312    2377.2837     8680.2091    22.4217    0.0571    0.2689 
+  7        0.7472      0.7426      0.7283     35.6384    2337.2046    1218.3169    2372.9918     8478.8775    21.9561    0.0559    0.2633 
+  8        0.7524      0.7473      0.7324     29.0682    2330.9555    1212.3386    2370.7190     8324.8247    21.6106    0.0550    0.2592 
+  9        0.7550      0.7493      0.7325     26.8222    2328.8037    1210.3392    2372.5436     8259.0706    21.4930    0.0547    0.2578 
+ 10        0.7609      0.7546      0.7389     19.1743    2321.2040    1203.2393    2368.9202     8081.3720    21.0825    0.0537    0.2528 
+ 11        0.7665      0.7598      0.7432     12.0000    2313.8534    1196.4818    2365.5460     7912.5521    20.6929    0.0527    0.2482 
+-----------------------------------------------------------------------------------------------------------------------------------------
+AIC: Akaike Information Criteria 
+ SBIC: Sawa's Bayesian Information Criteria 
+ SBC: Schwarz Bayesian Criteria 
+ MSEP: Estimated error of prediction, assuming multivariate normality 
+ FPE: Final Prediction Error 
+ HSP: Hocking's Sp 
+ APC: Amemiya Prediction Criteria 
+
+> plot(best_subset)
+> #qua vediamo criterio di selezione automatica quale insieme di regressori tra
+> #quelli che costituivano il secondo modello è meglio usare in base a parametri 
+> #come AIC,BIC o R^2 ecc
+> 
+> 
+> # ------------------------------------------------------------------------------
+> # CONTROLLO DELL'ETEROSCHEDASTICITÀ CON I TEST DI BREUSCH-PAGAN E WHITE
+> # ------------------------------------------------------------------------------
+> 
+> # 1. TEST DI BREUSCH-PAGAN
+> # ------------------------------------------------------------------------------
+> 
+> # Calcolo dei residui al quadrato del modello
+> residui_m2 <- resid(model1)
+> residui_m2_quad <- residui_m2^2
+> 
+> # Creazione di un modello ausiliario in cui i residui al quadrato sono la variabile dipendente
+> # e TUTTI i regressori originali sono le variabili indipendenti
+> modello_ausiliario_BP <- lm(residui_m2_quad ~ ., data = housing_data)
+> 
+> # Esecuzione del test di Breusch-Pagan
+> summary(modello_ausiliario_BP)
+
+Call:
+lm(formula = residui_m2_quad ~ ., data = housing_data)
+
+Residuals:
+   Min     1Q Median     3Q    Max 
+-78.53 -20.53  -5.52  12.33 433.49 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept) -116.18804   57.94984  -2.005 0.045676 *  
+CRIM           0.68669    0.32129   2.137 0.033212 *  
+ZN            -0.17541    0.14298  -1.227 0.220659    
+INDUS         -0.06213    0.64521  -0.096 0.923333    
+CHAS          14.56890    9.15711   1.591 0.112445    
+NOX           35.40757   42.47653   0.834 0.405043    
+RM           -36.04918    5.08200  -7.093 6.46e-12 ***
+AGE            0.36307    0.14160   2.564 0.010732 *  
+DIS            5.63689    2.19023   2.574 0.010442 *  
+RAD           -0.58102    0.69296  -0.838 0.402295    
+TAX            0.13095    0.03925   3.336 0.000934 ***
+PTRATIO        4.79141    1.44989   3.305 0.001041 ** 
+B             -0.05791    0.02945  -1.966 0.050026 .  
+LSTAT          1.25095    0.57875   2.161 0.031285 *  
+MEDV           7.30328    0.50186  14.552  < 2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 43.9 on 379 degrees of freedom
+Multiple R-squared:  0.4312,    Adjusted R-squared:  0.4102 
+F-statistic: 20.53 on 14 and 379 DF,  p-value: < 2.2e-16
+
+> 
+> #SE P-VALUE MINORE DI 0.005 RIFIUTO OMOSCHEDASTICITÀ QUINDI HO ETEROSCHEDASTICITÀ
+> 
+> # ------------------------------------------------------------------------------
+> # 2. TEST DI WHITE
+> # ------------------------------------------------------------------------------
+> 
+> # Calcolo delle ordinate stimate (fitted values) e dei loro quadrati
+> fitted_m2 <- fitted(model1)
+> fitted_m2_quad <- fitted_m2^2
+> 
+> # Creazione di un modello ausiliario per il test di White
+> # I residui al quadrato sono la variabile dipendente, mentre le ordinate stimate e i loro quadrati sono le variabili indipendenti
+> modello_ausiliario_White <- lm(residui_m2_quad ~ fitted_m2 + fitted_m2_quad)
+> 
+> # Esecuzione del test di White
+> summary(modello_ausiliario_White)
+
+Call:
+lm(formula = residui_m2_quad ~ fitted_m2 + fitted_m2_quad)
+
+Residuals:
+   Min     1Q Median     3Q    Max 
+-62.20 -13.58  -9.73  -2.12 677.07 
+
+Coefficients:
+               Estimate Std. Error t value Pr(>|t|)    
+(Intercept)    63.33473   16.64875   3.804 0.000165 ***
+fitted_m2      -4.95502    1.46167  -3.390 0.000770 ***
+fitted_m2_quad  0.11859    0.03074   3.858 0.000134 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 56.1 on 391 degrees of freedom
+Multiple R-squared:  0.04173,   Adjusted R-squared:  0.03683 
+F-statistic: 8.513 on 2 and 391 DF,  p-value: 0.0002404
+
+> 
+> #SE P-VALUE MINORE DI 0.005 RIFIUTO OMOSCHEDASTICITÀ QUINDI HO ETEROSCHEDASTICITÀ
+> 
+> # ------------------------------------------------------------------------------
+> # 3. GRAFICO DEI RESIDUI VS VALORI FITTED
+> # ------------------------------------------------------------------------------
+> 
+> # Creazione del grafico dei residui vs valori fitted per visualizzare eventuali pattern di eteroschedasticità
+> windows()
+> plot(fitted(model1), residuals(model1), 
++      xlab = "Valori Fitted", ylab = "Residui", 
++      main = "Residui vs Valori Fitted per Eteroschedasticità",
++      pch = 20, col = "blue")
+> abline(h = 0, col = "red", lwd = 2)
+> 
+> 
+> # ------------------------------------------------------------------------------
+> # 4. TRASFORMAZIONE LOGARITMICA DELLA VARIABILE DIPENDENTE
+> # ------------------------------------------------------------------------------
+> # Applico una trasformazione logaritmica alla variabile dipendente
+> housing_data$log_MEDV <- log(housing_data$MEDV)
+> 
+> # Ristimo il modello con la variabile dipendente trasformata
+> model1_log <- lm(log_MEDV ~ ., data = housing_data)
+> 
+> # Verifico nuovamente l'eteroschedasticità con il test di Breusch-Pagan
+> residui_m1_log <- resid(model1_log)
+> residui_m1_log_quad <- residui_m1_log^2
+> modello_ausiliario_BP_log <- lm(residui_m1_log_quad ~ ., data = housing_data)
+> summary_BP_log <- summary(modello_ausiliario_BP_log)
+> print(summary_BP_log)
+
+Call:
+lm(formula = residui_m1_log_quad ~ ., data = housing_data)
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.061541 -0.004486 -0.000031  0.003024  0.103454 
+
+Coefficients:
+              Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  2.330e-01  3.087e-02   7.547 3.35e-13 ***
+CRIM         5.080e-04  1.182e-04   4.298 2.20e-05 ***
+ZN          -4.391e-05  4.752e-05  -0.924 0.356155    
+INDUS        2.835e-04  2.138e-04   1.326 0.185716    
+CHAS         3.785e-03  3.033e-03   1.248 0.212857    
+NOX         -3.431e-02  1.413e-02  -2.428 0.015641 *  
+RM          -6.790e-04  1.743e-03  -0.389 0.697134    
+AGE         -5.241e-05  4.691e-05  -1.117 0.264511    
+DIS         -5.051e-04  7.248e-04  -0.697 0.486268    
+RAD         -4.202e-04  2.308e-04  -1.821 0.069408 .  
+TAX          2.628e-05  1.307e-05   2.010 0.045172 *  
+PTRATIO     -5.235e-04  4.805e-04  -1.089 0.276645    
+B            3.660e-05  9.765e-06   3.748 0.000206 ***
+LSTAT       -1.288e-05  2.152e-04  -0.060 0.952278    
+MEDV         3.769e-03  3.463e-04  10.884  < 2e-16 ***
+log_MEDV    -9.773e-02  8.428e-03 -11.595  < 2e-16 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Residual standard error: 0.01452 on 378 degrees of freedom
+Multiple R-squared:  0.5259,    Adjusted R-squared:  0.5071 
+F-statistic: 27.96 on 15 and 378 DF,  p-value: < 2.2e-16
+
+> 
+> #SE P-VALUE MINORE DI 0.005 RIFIUTO OMOSCHEDASTICITÀ QUINDI HO ETEROSCHEDASTICITÀ
+> 
+> # ------------------------------------------------------------------------------
+> # 5. UTILIZZO ERRORI ROBUSTI
+> # ------------------------------------------------------------------------------
+> 
+> 
+> # Calcolo della matrice di covarianza robusta
+> vcov_robusto <- vcovHC(model1, type = "HC1")
+> 
+> # Stima dei coefficienti con errori robusti
+> coef_robusti <- coeftest(model1, vcov = vcov_robusto)
+> cat("Coefficienti con errori robusti:\n")
+Coefficienti con errori robusti:
+> print(coef_robusti)
+
+t test of coefficients:
+
+               Estimate  Std. Error t value  Pr(>|t|)    
+(Intercept)  32.6800585   8.6299007  3.7868 0.0001773 ***
+CRIM         -0.0975938   0.0314289 -3.1052 0.0020440 ** 
+ZN            0.0489049   0.0148691  3.2890 0.0010991 ** 
+INDUS         0.0303790   0.0568419  0.5344 0.5933448    
+CHAS          2.7693781   1.5043057  1.8410 0.0664057 .  
+NOX         -17.9690282   4.0545335 -4.4318 1.224e-05 ***
+RM            4.2832519   0.9207643  4.6518 4.549e-06 ***
+AGE          -0.0129908   0.0163256 -0.7957 0.4266861    
+DIS          -1.4585100   0.2350380 -6.2054 1.428e-09 ***
+RAD           0.2858656   0.0636008  4.4947 9.263e-06 ***
+TAX          -0.0131464   0.0030580 -4.2991 2.183e-05 ***
+PTRATIO      -0.9145824   0.1300381 -7.0332 9.445e-12 ***
+B             0.0096557   0.0030073  3.2107 0.0014367 ** 
+LSTAT        -0.4236607   0.1003734 -4.2208 3.048e-05 ***
+---
+Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+> # ------------------------------------------------------------------------------
+> # FINE DELLA SEZIONE SULL'ETEROSCHEDASTICITÀ
+> # ------------------------------------------------------------------------------
+> 
+> 
+> 
+> 
+> 
+> # ------------------------------------------------------------------------------
+> # STATISTICAL LEARNING - REGOLARIZZAZIONE: RIDGE, LASSO, ELASTIC NET
+> # ------------------------------------------------------------------------------
+> 
+> 
+> # ------------------------------------------------------------------------------
+> # 1. PREPARAZIONE DEI DATI
+> # ------------------------------------------------------------------------------
+> 
+> # Separazione delle variabili indipendenti (X) e dipendente (y)
+> X <- as.matrix(housing_data[, -which(names(housing_data) == "MEDV")])  # Tutte le colonne tranne MEDV
+> y <- housing_data$MEDV  # Variabile dipendente MEDV (prezzo delle case)
+> 
+> # Standardizzazione dei regressori (buona pratica per la regolarizzazione)
+> X <- scale(X)
+> 
+> # Creazione della griglia di valori per lambda (parametro di penalizzazione)
+> lambda_grid <- 10^seq(10, -2, length = 100)
+> 
+> # ------------------------------------------------------------------------------
+> # 2. RIDGE REGRESSION
+> # ------------------------------------------------------------------------------
+> 
+> # Stima del modello Ridge Regression
+> ridge_model <- glmnet(X, y, alpha = 0, lambda = lambda_grid)
+> 
+> # Cross-validation per scegliere il miglior lambda
+> cv_ridge <- cv.glmnet(X, y, alpha = 0, lambda = lambda_grid)
+> 
+> # Valore ottimale di lambda (quello che minimizza l'errore di previsione)
+> best_lambda_ridge <- cv_ridge$lambda.min
+> 
+> # Stima del modello finale con il miglior lambda
+> ridge_final <- glmnet(X, y, alpha = 0, lambda = best_lambda_ridge)
+> 
+> # Coefficienti del modello finale Ridge
+> coef_ridge <- coef(ridge_final)
+> 
+> # ------------------------------------------------------------------------------
+> # 3. LASSO REGRESSION
+> # ------------------------------------------------------------------------------
+> 
+> # Stima del modello LASSO
+> lasso_model <- glmnet(X, y, alpha = 1, lambda = lambda_grid)
+> 
+> # Cross-validation per scegliere il miglior lambda
+> cv_lasso <- cv.glmnet(X, y, alpha = 1, lambda = lambda_grid)
+> 
+> # Valore ottimale di lambda
+> best_lambda_lasso <- cv_lasso$lambda.min
+> 
+> # Stima del modello finale con il miglior lambda
+> lasso_final <- glmnet(X, y, alpha = 1, lambda = best_lambda_lasso)
+> 
+> # Coefficienti del modello finale LASSO
+> coef_lasso <- coef(lasso_final)
+> 
+> # ------------------------------------------------------------------------------
+> # 4. ELASTIC NET
+> # ------------------------------------------------------------------------------
+> 
+> # Stima del modello Elastic Net (alpha = 0.5, bilancia Ridge e LASSO)
+> elastic_model <- glmnet(X, y, alpha = 0.5, lambda = lambda_grid)
+> 
+> # Cross-validation per scegliere il miglior lambda
+> cv_elastic <- cv.glmnet(X, y, alpha = 0.5, lambda = lambda_grid)
+> 
+> # Valore ottimale di lambda
+> best_lambda_elastic <- cv_elastic$lambda.min
+> 
+> # Stima del modello finale con il miglior lambda
+> elastic_final <- glmnet(X, y, alpha = 0.5, lambda = best_lambda_elastic)
+> 
+> # Coefficienti del modello finale Elastic Net
+> coef_elastic <- coef(elastic_final)
+> 
+> # ------------------------------------------------------------------------------
+> # 5. TABELLA UNICA DEI COEFFICIENTI
+> # ------------------------------------------------------------------------------
+> 
+> # Creazione di una tabella unica per confrontare i coefficienti dei tre modelli
+> coefficients_table <- data.frame(
++   Variable = rownames(coef_ridge),  # Nomi delle variabili
++   Ridge = as.numeric(coef_ridge),   # Coefficienti Ridge
++   LASSO = as.numeric(coef_lasso),   # Coefficienti LASSO
++   ElasticNet = as.numeric(coef_elastic)  # Coefficienti Elastic Net
++ )
+> 
+> # Stampa della tabella dei coefficienti
+> print(coefficients_table)
+      Variable       Ridge      LASSO   ElasticNet
+1  (Intercept) 22.35964467 22.3596447 22.359644670
+2         CRIM  0.96933324  0.9161969  0.929536028
+3           ZN  0.55417818  0.4729599  0.526515457
+4        INDUS -0.15841371  0.0000000 -0.046260061
+5         CHAS  0.06951432  0.0220230  0.051771707
+6          NOX -0.07113269  0.0000000  0.000000000
+7           RM  1.51153850  1.3935159  1.453933410
+8          AGE -0.24281705  0.0000000 -0.087646342
+9          DIS -0.81178507 -0.5173500 -0.629367268
+10         RAD  0.03648109  0.0000000  0.012572836
+11         TAX  0.08961792  0.0000000  0.000000000
+12     PTRATIO -0.32892687 -0.2954809 -0.315546110
+13           B  0.06557978  0.0000000  0.002059861
+14       LSTAT  1.02883467  0.6239086  0.750439379
+15    log_MEDV  8.74759614  8.5649407  8.580576191
+> 
+> # ------------------------------------------------------------------------------
+> # 6. CONFRONTO DEI MODELLI IN TERMINI DI MSE
+> # ------------------------------------------------------------------------------
+> 
+> # Calcolo del MSE per Ridge
+> mse_ridge <- min(cv_ridge$cvm)
+> 
+> # Calcolo del MSE per LASSO
+> mse_lasso <- min(cv_lasso$cvm)
+> 
+> # Calcolo del MSE per Elastic Net
+> mse_elastic <- min(cv_elastic$cvm)
+> 
+> # Creazione di una tabella di confronto
+> mse_comparison <- data.frame(
++   Model = c("Ridge", "LASSO", "Elastic Net"),
++   MSE = c(mse_ridge, mse_lasso, mse_elastic)
++ )
+> 
+> # Stampa del confronto dei MSE
+> print(mse_comparison)
+        Model      MSE
+1       Ridge 5.287105
+2       LASSO 5.341359
+3 Elastic Net 5.040578
+> 
+> # ------------------------------------------------------------------------------
+> # 7. SELEZIONE DEL MODELLO MIGLIORE
+> # ------------------------------------------------------------------------------
+> 
+> # Selezione del modello con il minor MSE
+> best_model <- ifelse(mse_ridge < mse_lasso & mse_ridge < mse_elastic, "Ridge",
++                      ifelse(mse_lasso < mse_elastic, "LASSO", "Elastic Net"))
+> 
+> # Stampa del modello migliore
+> cat("Il modello migliore è:", best_model, "\n")
+Il modello migliore è: Elastic Net 
+> 
+> # ------------------------------------------------------------------------------
+> # 8. GRAFICI DEI COEFFICIENTI
+> # ------------------------------------------------------------------------------
+> 
+> # Grafico dei coefficienti per Ridge
+> windows()
+> plot(ridge_model, xvar = "lambda", label = TRUE, main = "Ridge Regression Coefficients")
+> 
+> # Grafico dei coefficienti per LASSO
+> windows()
+> plot(lasso_model, xvar = "lambda", label = TRUE, main = "LASSO Coefficients")
+> 
+> # Grafico dei coefficienti per Elastic Net
+> windows()
+> plot(elastic_model, xvar = "lambda", label = TRUE, main = "Elastic Net Coefficients")
+> 
+> # ------------------------------------------------------------------------------
+> # FINE
+> # ------------------------------------------------------------------------------
+
